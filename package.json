@@ -1,0 +1,17 @@
+{
+  "name": "simple-db",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsx ./src/posts.ts"
+  },
+  "dependencies": {
+    "@types/node": "^20.11.17",
+    "steno": "^4.0.2",
+    "tsx": "^4.7.1"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5"
+  }
+}
