@@ -1,2 +1,9 @@
+node_modules
+
+/.cache
+/build
+.env
 .idea
-./node_modules
+http
+./database.json
+./db.json
