@@ -4,29 +4,29 @@ import { Writer } from "steno";
 type Parse<TData> = (value: string) => TData;
 
 class AsyncJSONFile<TData = unknown> {
+    readonly filename: string;
+    writer: Writer;
     private readonly parse: Parse<TData> = JSON.parse;
     private readonly stringify = JSON.stringify;
-    readonly #filename: string;
-    #writer: Writer;
 
     constructor(filename: string) {
-        this.#filename = filename;
-        this.#writer = new Writer(filename);
+        this.filename = filename;
+        this.writer = new Writer(filename);
     }
 
     async read(): Promise<TData | null> {
         try {
-            return this.parse(await readFile(this.#filename, "utf-8"));
+            return this.parse(await readFile(this.filename, "utf-8"));
         } catch (e) {
             if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-                throw new Error(`Database file does not exist`);
+                return null;
             }
             throw e;
         }
     }
 
     write(data: TData): Promise<void> {
-        return this.#writer.write(this.stringify(data));
+        return this.writer.write(this.stringify(data));
     }
 }
 
@@ -47,43 +47,25 @@ export default class SimpleDB<T extends IDatabaseEntity> {
         this.collection = collection;
     }
 
-    async initializeDB() {
-        await this.storage.write({});
-    }
-
     async create(newEntity: T): Promise<T> {
-        let newEntities;
-        const allEntities = await this.storage.read();
-        const collectionEntities = await this.getCollectionData();
-        if (allEntities) {
-            if (collectionEntities) {
-                newEntities = {
-                    ...allEntities,
-                    [this.collection]: [...collectionEntities, newEntity],
-                };
-            } else {
-                newEntities = {
-                    ...allEntities,
-                    [this.collection]: [newEntity],
-                };
-            }
-        } else {
-            newEntities = {
-                [this.collection]: [newEntity],
-            };
-        }
-
-        await this.storage.write(newEntities);
+        const [allEntities, collectionEntities] = await this.getEntitiesState();
+        const newEntities = {
+            ...allEntities,
+            [this.collection]: collectionEntities
+                ? [...collectionEntities, newEntity]
+                : [newEntity],
+        };
+        await this.writeEntitiesState(newEntities);
         return newEntity;
     }
 
     async getAll(): Promise<T[]> {
-        const entities = await this.getCollectionData();
+        const [_, entities] = await this.getEntitiesState();
         return entities ?? [];
     }
 
     async getByID(id: string): Promise<T | undefined> {
-        const entities = await this.getCollectionData();
+        const [_, entities] = await this.getEntitiesState();
         if (entities) {
             return entities.find((entity) => entity.id === id);
         }
@@ -94,72 +76,76 @@ export default class SimpleDB<T extends IDatabaseEntity> {
         id: string,
         updatedEntity: Partial<Omit<T, "id">>,
     ): Promise<T | null> {
-        let updatedEntities;
-        const entities = await this.getCollectionData();
-        if (entities) {
-            const entityIndex = entities.findIndex(
-                (entity) => entity.id === id,
-            );
-            if (entityIndex === -1) {
-                return null;
-            }
-            const updated = { ...entities[entityIndex], ...updatedEntity };
-            entities[entityIndex] = updated;
+        const [allEntities, collectionEntities] = await this.getEntitiesState();
+        if (!collectionEntities) return null;
 
-            const allEntities = await this.storage.read();
-            if (allEntities) {
-                updatedEntities = {
-                    ...allEntities,
-                    [this.collection]: entities,
-                };
-            } else {
-                updatedEntities = {
-                    [this.collection]: entities,
-                };
-            }
+        const entityIndex = collectionEntities.findIndex(
+            (entity) => entity.id === id,
+        );
+        if (entityIndex === -1) return null;
 
-            await this.storage.write(updatedEntities);
-            return updated;
-        }
-        return null;
+        const updated = {
+            ...collectionEntities[entityIndex],
+            ...updatedEntity,
+        };
+        collectionEntities[entityIndex] = updated;
+
+        const updatedEntities = {
+            ...allEntities,
+            [this.collection]: collectionEntities,
+        };
+        await this.writeEntitiesState(updatedEntities);
+        return updated;
     }
 
     async delete(id: string): Promise<boolean> {
-        let updatedEntities;
+        const [allEntities, collectionEntities] = await this.getEntitiesState();
+        if (!collectionEntities) return false;
 
-        const entities = await this.getCollectionData();
+        const entityIndex = collectionEntities.findIndex(
+            (entity) => entity.id === id,
+        );
+        if (entityIndex === -1) return false;
+
+        collectionEntities.splice(entityIndex, 1);
+
+        const updatedEntities = {
+            ...allEntities,
+            [this.collection]: collectionEntities,
+        };
+        await this.writeEntitiesState(updatedEntities);
+        return true;
+    }
+
+    async getEntities(): Promise<ICollection<T> | null> {
+        return await this.storage.read();
+    }
+
+    async deleteEntities(entities: ICollection<T>): Promise<boolean> {
+        delete entities[this.collection];
+        await this.storage.write(entities);
+        return true;
+    }
+
+    async deleteCollection(): Promise<boolean> {
+        const entities = await this.getEntities();
         if (entities) {
-            const entityIndex = entities.findIndex(
-                (entity) => entity.id === id,
-            );
-            if (entityIndex === -1) {
-                return false;
-            }
-            entities.splice(entityIndex, 1);
-
-            const allEntities = await this.storage.read();
-            if (allEntities) {
-                updatedEntities = {
-                    ...allEntities,
-                    [this.collection]: entities,
-                };
-            } else {
-                updatedEntities = {
-                    [this.collection]: entities,
-                };
-            }
-
-            await this.storage.write(updatedEntities);
-            return true;
+            return this.deleteEntities(entities);
         }
         return false;
     }
 
-    private async getCollectionData(): Promise<T[] | null> {
-        const entities = await this.storage.read();
-        if (entities) {
-            return entities[this.collection] ?? null;
-        }
-        return null;
+    private async getEntitiesState(): Promise<
+        [ICollection<T> | null, T[] | null]
+    > {
+        const allEntities = await this.storage.read();
+        const collectionEntities = allEntities
+            ? allEntities[this.collection]
+            : null;
+        return [allEntities, collectionEntities];
+    }
+
+    private async writeEntitiesState(entities: ICollection<T>): Promise<void> {
+        return this.storage.write(entities);
     }
 }
