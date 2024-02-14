@@ -19,7 +19,7 @@ class AsyncJSONFile<TData = unknown> {
             return this.parse(await readFile(this.#filename, "utf-8"));
         } catch (e) {
             if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-                return null;
+                throw new Error(`Database file does not exist`);
             }
             throw e;
         }
@@ -85,9 +85,7 @@ export default class AsyncJSONFileBasedDB<T extends IDatabaseEntity> {
     async getByID(id: string): Promise<T | undefined> {
         const entities = await this.getCollectionData();
         if (entities) {
-            return entities
-                ? entities.find((entity) => entity.id === id)
-                : undefined;
+            return entities.find((entity) => entity.id === id);
         }
         return undefined;
     }
