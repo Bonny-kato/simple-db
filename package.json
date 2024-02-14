@@ -1,6 +1,6 @@
 {
   "name": "@bonnykato/simple-db",
-  "version": "1.0.0",
+  "version": "1.0.10",
   "license": "MIT",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -12,15 +12,14 @@
     "build": "rollup -c"
   },
   "dependencies": {
-    "@types/node": "^20.11.17",
-    "steno": "^4.0.2",
-    "tsx": "^4.7.1"
+    "steno": "^4.0.2"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^20.11.17",
     "prettier": "^3.2.5",
     "rollup": "^4.10.0",
     "rollup-plugin-dts": "^6.1.0",
