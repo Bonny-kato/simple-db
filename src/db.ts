@@ -38,7 +38,7 @@ interface ICollection<T> {
     [name: string]: T[];
 }
 
-export default class AsyncJSONFileBasedDB<T extends IDatabaseEntity> {
+export default class SimpleDB<T extends IDatabaseEntity> {
     readonly collection: string;
     private storage: AsyncJSONFile<ICollection<T>>;
 
