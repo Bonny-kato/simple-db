@@ -117,22 +117,22 @@ export default class SimpleDB<T extends IDatabaseEntity> {
         return true;
     }
 
-    async getEntities(): Promise<ICollection<T> | null> {
-        return await this.storage.read();
-    }
-
-    async deleteEntities(entities: ICollection<T>): Promise<boolean> {
-        delete entities[this.collection];
-        await this.storage.write(entities);
-        return true;
-    }
-
     async deleteCollection(): Promise<boolean> {
         const entities = await this.getEntities();
         if (entities) {
             return this.deleteEntities(entities);
         }
         return false;
+    }
+
+    private async getEntities(): Promise<ICollection<T> | null> {
+        return await this.storage.read();
+    }
+
+    private async deleteEntities(entities: ICollection<T>): Promise<boolean> {
+        delete entities[this.collection];
+        await this.storage.write(entities);
+        return true;
     }
 
     private async getEntitiesState(): Promise<
