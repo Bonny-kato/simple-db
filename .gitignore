@@ -7,3 +7,4 @@ node_modules
 http
 ./database.json
 ./db.json
+dist
